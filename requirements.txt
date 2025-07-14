@@ -2,3 +2,4 @@ pyrogram
 tgcrypto
 moviepy
 imageio-ffmpeg
+python-dotenv

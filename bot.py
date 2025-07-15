@@ -1,81 +1,78 @@
 import os
 import time
 import asyncio
-import subprocess
-from datetime import datetime
+import logging
 from pyrogram import Client, filters
 from pyrogram.types import Message
-from flask import Flask
-from threading import Thread
+from datetime import datetime
+import subprocess
 
-# ===== API CREDENTIALS =====
 API_ID = 28179017
 API_HASH = "3eccbcc092d1a95e5c633913bfe0d9e9"
 BOT_TOKEN = "8194588818:AAHmvjJ42eR_VoGHXzxzqPfvMi8eJ9_OsAc"
 
-# ===== DOWNLOAD PATH =====
-DOWNLOAD_DIR = "downloads"
-os.makedirs(DOWNLOAD_DIR, exist_ok=True)
+app = Client("video_generator_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
-# ===== WATERMARK AND TEXT =====
-WATERMARK_TEXT = "@viral link hub"
-BOTTOM_TEXT = "link on comment box / profile"
-FONT_PATH = "font.ttf"  # Upload OpenSans-Regular.ttf as font.ttf
+DOWNLOAD_FOLDER = "downloads"
+os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
 
-# ===== BOT SETUP =====
-bot = Client("video_edit_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
+logging.basicConfig(level=logging.INFO)
 
-@bot.on_message(filters.video & filters.private)
-async def video_handler(client, message: Message):
+def edit_video(input_file, output_file):
     try:
-        sent_msg = await message.reply_text("📥 Downloading video...")
-        video_path = await message.download(file_name=os.path.join(DOWNLOAD_DIR, f"video_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}_{message.id}.mp4"))
-
-        await sent_msg.edit("🎬 Editing video...")
-
-        edited_path = video_path.replace(".mp4", "_edited.mp4")
-
         command = [
             "ffmpeg",
-            "-i", video_path,
+            "-i", input_file,
             "-filter_complex",
-            f"[0:v]scale=720:-1,boxblur=5:1[bg];[0:v]scale=480:-1[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2,"
-            f"drawtext=fontfile={FONT_PATH}:text='{WATERMARK_TEXT}':fontcolor=white:fontsize=24:x=10:y=H-th-40,"
-            f"drawtext=fontfile={FONT_PATH}:text='{BOTTOM_TEXT}':fontcolor=white:fontsize=18:x=10:y=H-th-10",
+            "[0:v]scale=720:-1,boxblur=5:1[bg];[0:v]scale=480:-1[fg];"
+            "[bg][fg]overlay=(W-w)/2:(H-h)/2,"
+            "drawtext=text='@viral link hub':fontcolor=white:fontsize=24:x=10:y=H-th-40,"
+            "atempo=1.1",
             "-preset", "ultrafast",
             "-c:a", "aac",
-            "-y", edited_path
+            "-y", output_file
         ]
-
-        result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-
-        if result.returncode != 0:
-            await sent_msg.edit("❌ Error: Video editing failed.")
-            print("Error:", result.stderr.decode())
-            return
-
-        await sent_msg.edit("📤 Uploading edited video...")
-        await message.reply_video(edited_path, caption="✅ Edited & Copyright-Free ✅")
-
-        await sent_msg.delete()
-        os.remove(video_path)
-        os.remove(edited_path)
-
+        subprocess.run(command, check=True)
+        return True
     except Exception as e:
-        await message.reply_text(f"❌ Error: {str(e)}")
-        print("Exception:", str(e))
+        print(f"❌ Error: {e}")
+        return False
 
-# ===== FLASK SETUP FOR RENDER =====
-app = Flask('')
+@app.on_message(filters.video)
+async def handle_video(client, message: Message):
+    sent_msg = await message.reply("📥 Downloading...")
+    try:
+        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+        video_path = os.path.join(DOWNLOAD_FOLDER, f"video_{timestamp}.mp4")
+        edited_path = f"edited_{timestamp}.mp4"
 
-@app.route('/')
-def home():
-    return "Bot is running!"
+        await message.download(video_path)
+        await sent_msg.edit("🎞️ Editing...")
 
-def run():
-    app.run(host='0.0.0.0', port=8080)
+        # Check duration
+        probe = subprocess.run(
+            ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", video_path],
+            capture_output=True, text=True
+        )
+        duration = float(probe.stdout.strip())
 
-Thread(target=run).start()
+        if duration < 5:
+            loops = int(7 // duration) + 1
+            loop_path = f"looped_{timestamp}.mp4"
+            subprocess.run([
+                "ffmpeg", "-stream_loop", str(loops), "-i", video_path,
+                "-t", "7", "-c", "copy", loop_path
+            ], check=True)
+            os.remove(video_path)
+            video_path = loop_path
 
-# ===== START BOT =====
-bot.run()
+        if edit_video(video_path, edited_path):
+            await sent_msg.edit("📤 Sending edited video...")
+            await message.reply_video(edited_path)
+            await sent_msg.delete()
+        else:
+            await sent_msg.edit("❌ Error: Video editing failed.")
+    except Exception as e:
+        await sent_msg.edit(f"❌ Error: {e}")
+
+app.run()

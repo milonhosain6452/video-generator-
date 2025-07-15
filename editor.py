@@ -1,4 +1,4 @@
-# ✅ File: editor.py
+# ✅ editor.py
 from moviepy.editor import VideoFileClip, concatenate_videoclips, TextClip, CompositeVideoClip
 import os
 
@@ -6,7 +6,6 @@ def process_video(input_path):
     clip = VideoFileClip(input_path)
     duration = clip.duration
 
-    # ✅ যদি ভিডিও 5 সেকেন্ডের কম হয়, তাহলে ক্লোন করে সময় বাড়ানো হবে
     if duration < 5:
         loop_count = int(6 // duration) + 1
         clips = [clip] * loop_count
@@ -14,17 +13,13 @@ def process_video(input_path):
     else:
         final_clip = clip.subclip(0, min(20, duration))
 
-    # ✅ টেক্সট Watermark
-    watermark = TextClip("@viralLinkHub", fontsize=50, color='white')
-    watermark = watermark.set_position(("right", "bottom")).set_duration(final_clip.duration)
+    # ✅ Add watermark and caption
+    watermark = TextClip("@viralLinkHub", fontsize=40, color='white').set_duration(final_clip.duration).set_position(("right", "bottom"))
+    caption = TextClip("Link on comment box / profile", fontsize=30, color='white').set_duration(final_clip.duration).set_position(("center", "bottom"))
 
-    caption = TextClip("Link on comment box / profile", fontsize=40, color='white')
-    caption = caption.set_position(("center", "bottom")).set_duration(final_clip.duration)
-
-    # ✅ Composite with watermark and text
     final = CompositeVideoClip([final_clip, watermark, caption])
 
-    # ✅ Slight pitch and speed change (copyright protection)
+    # ✅ Slight speed change to make copyright-safe
     final = final.fx(lambda clip: clip.speedx(1.02))
 
     output_path = f"edited_{os.path.basename(input_path)}"

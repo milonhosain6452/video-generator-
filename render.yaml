@@ -1,7 +1,0 @@
-services:
-  - type: web
-    name: video-generator-bot
-    runtime: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: python bot.py
-    autoDeploy: true

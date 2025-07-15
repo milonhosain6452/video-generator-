@@ -1,26 +1,30 @@
-import os 
-from pyrogram 
-import Client, filters from pyrogram.types import Message from editor import process_video
+# ✅ bot.py
+import os
+from pyrogram import Client, filters
+from editor import process_video
 
-API_ID = 18088290 API_HASH = "1b06cbb45d19188307f10bcf275341c5" BOT_TOKEN = "7628770960:AAHKgUwOAtrolkpN4hU58ISbsZDWyIP6324"
+# Bot Config
+API_ID = 18088290
+API_HASH = "1b06cbb45d19188307f10bcf275341c5"
+BOT_TOKEN = "7628770960:AAHKgUwOAtrolkpN4hU58ISbsZDWyIP6324"
 
-bot = Client("video_editor_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
+app = Client("my_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
-@bot.on_message(filters.video & filters.private) async def handle_video(bot, message: Message): try: download_path = await message.download("downloads/") await message.reply_text("📥 ভিডিও ডাউনলোড হয়েছে, এখন এডিট হচ্ছে...")
+DOWNLOAD_DIR = "downloads"
+os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
-output_path = process_video(download_path)
+@app.on_message(filters.video & filters.private)
+async def handle_video(client, message):
+    video = message.video
+    file_path = await message.download(file_name=os.path.join(DOWNLOAD_DIR, f"{message.id}.mp4"))
+    await message.reply_text("✅ ভিডিও ডাউনলোড শেষ। এখন এডিট হচ্ছে...")
 
-    await bot.send_video(
-        chat_id=message.chat.id,
-        video=output_path,
-        caption="✅ Edited by @viralLinkHub\nLink on comment box / profile",
-        supports_streaming=True
-    )
+    try:
+        edited_path = process_video(file_path)
+        await message.reply_video(video=edited_path, caption="✅ Done! @viralLinkHub")
+        os.remove(edited_path)
+        os.remove(file_path)
+    except Exception as e:
+        await message.reply_text(f"❌ এডিটিংয়ে সমস্যা: {e}")
 
-    os.remove(download_path)
-    os.remove(output_path)
-
-except Exception as e:
-    await message.reply_text(f"❌ এডিট করতে সমস্যা হয়েছে!\n{e}")
-
-bot.run()
+app.run()

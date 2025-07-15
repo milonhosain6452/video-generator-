@@ -1,5 +1,4 @@
 pyrogram==2.0.106
-tgcrypto==1.2.5
-moviepy==1.0.3
-imageio-ffmpeg
+tgcrypto
+moviepy==2.2.1
 python-dotenv

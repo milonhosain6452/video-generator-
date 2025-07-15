@@ -25,14 +25,15 @@ WATERMARK = "@viral link hub"
 SUBTEXT = "link on comment box / profile"
 
 # Font file
-FONT_FILE = "font.ttf"
+FONT_FILE = "font.ttf"  # Make sure this file exists
 
 # Handle video messages
 @app.on_message(filters.video & filters.private)
 async def handle_video(client: Client, message: Message):
     try:
         await message.reply_text("📥 Downloading your video...")
-        downloaded_path = await message.download(file_name=os.path.join(DOWNLOAD_DIR, message.video.file_name))
+        safe_filename = message.video.file_name or f"video_{datetime.now().strftime('%Y%m%d%H%M%S')}.mp4"
+        downloaded_path = await message.download(file_name=os.path.join(DOWNLOAD_DIR, safe_filename))
 
         # Generate edited file name
         now = datetime.now().strftime("%Y%m%d%H%M%S")
@@ -56,7 +57,7 @@ async def handle_video(client: Client, message: Message):
         result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
         if result.returncode != 0:
-            raise Exception("FFmpeg failed")
+            raise Exception("FFmpeg failed:\n" + result.stderr.decode())
 
         await message.reply_video(output_path, caption="✅ Edited & ready to share!")
 

@@ -1,8 +1,9 @@
 services:
-  - type: web
+  - type: worker
     name: telegram-video-bot
     env: python
-    plan: free
-    buildCommand: pip install -r requirements.txt
+    buildCommand: |
+      apt-get update && \
+      apt-get install -y ffmpeg && \
+      pip install -r requirements.txt
     startCommand: python bot.py
-    pythonVersion: 3.10

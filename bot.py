@@ -1,57 +1,81 @@
 import os
+import time
+import asyncio
 import subprocess
+from datetime import datetime
 from pyrogram import Client, filters
 from pyrogram.types import Message
-from datetime import datetime
+from flask import Flask
+from threading import Thread
 
-# 🔐 Token ও API Credentials
+# ===== API CREDENTIALS =====
 API_ID = 28179017
 API_HASH = "3eccbcc092d1a95e5c633913bfe0d9e9"
 BOT_TOKEN = "8194588818:AAHmvjJ42eR_VoGHXzxzqPfvMi8eJ9_OsAc"
 
-app = Client("video_editor_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
+# ===== DOWNLOAD PATH =====
+DOWNLOAD_DIR = "downloads"
+os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
-DOWNLOADS_DIR = "downloads"
-EDITED_DIR = "edited"
+# ===== WATERMARK AND TEXT =====
+WATERMARK_TEXT = "@viral link hub"
+BOTTOM_TEXT = "link on comment box / profile"
+FONT_PATH = "font.ttf"  # Upload OpenSans-Regular.ttf as font.ttf
 
-os.makedirs(DOWNLOADS_DIR, exist_ok=True)
-os.makedirs(EDITED_DIR, exist_ok=True)
+# ===== BOT SETUP =====
+bot = Client("video_edit_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
-@app.on_message(filters.video & filters.private)
-async def edit_video(client, message: Message):
+@bot.on_message(filters.video & filters.private)
+async def video_handler(client, message: Message):
     try:
-        sent = await message.reply("📥 Downloading your video...")
-        downloaded_path = await message.download(file_name=os.path.join(DOWNLOADS_DIR, f"{message.video.file_unique_id}.mp4"))
+        sent_msg = await message.reply_text("📥 Downloading video...")
+        video_path = await message.download(file_name=os.path.join(DOWNLOAD_DIR, f"video_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}_{message.id}.mp4"))
 
-        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-        output_path = os.path.join(EDITED_DIR, f"edited_{timestamp}.mp4")
+        await sent_msg.edit("🎬 Editing video...")
 
-        font_path = "font.ttf"  # make sure it's in the repo
+        edited_path = video_path.replace(".mp4", "_edited.mp4")
 
-        cmd = [
+        command = [
             "ffmpeg",
-            "-i", downloaded_path,
+            "-i", video_path,
             "-filter_complex",
-            f"[0:v]scale=720:-1,boxblur=5:1[bg];"
-            f"[0:v]scale=480:-1[fg];"
-            f"[bg][fg]overlay=(W-w)/2:(H-h)/2,"
-            f"drawtext=fontfile={font_path}:text='@viral link hub':fontcolor=white:fontsize=24:x=10:y=H-th-40,"
-            f"drawtext=fontfile={font_path}:text='link on comment box / profile':fontcolor=white:fontsize=18:x=10:y=H-th-10",
+            f"[0:v]scale=720:-1,boxblur=5:1[bg];[0:v]scale=480:-1[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2,"
+            f"drawtext=fontfile={FONT_PATH}:text='{WATERMARK_TEXT}':fontcolor=white:fontsize=24:x=10:y=H-th-40,"
+            f"drawtext=fontfile={FONT_PATH}:text='{BOTTOM_TEXT}':fontcolor=white:fontsize=18:x=10:y=H-th-10",
             "-preset", "ultrafast",
             "-c:a", "aac",
-            "-y",
-            output_path
+            "-y", edited_path
         ]
 
-        subprocess.run(cmd, check=True)
-        await sent.edit("📤 Uploading edited video...")
-        await message.reply_video(video=output_path, caption="✅ Edited Successfully")
-        await sent.delete()
+        result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-        os.remove(downloaded_path)
-        os.remove(output_path)
+        if result.returncode != 0:
+            await sent_msg.edit("❌ Error: Video editing failed.")
+            print("Error:", result.stderr.decode())
+            return
+
+        await sent_msg.edit("📤 Uploading edited video...")
+        await message.reply_video(edited_path, caption="✅ Edited & Copyright-Free ✅")
+
+        await sent_msg.delete()
+        os.remove(video_path)
+        os.remove(edited_path)
 
     except Exception as e:
-        await message.reply(f"❌ Error: {e}")
+        await message.reply_text(f"❌ Error: {str(e)}")
+        print("Exception:", str(e))
 
-app.run()
+# ===== FLASK SETUP FOR RENDER =====
+app = Flask('')
+
+@app.route('/')
+def home():
+    return "Bot is running!"
+
+def run():
+    app.run(host='0.0.0.0', port=8080)
+
+Thread(target=run).start()
+
+# ===== START BOT =====
+bot.run()

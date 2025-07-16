@@ -33,7 +33,7 @@ async def handle_video(client: Client, message: Message):
         now = datetime.now().strftime("%Y%m%d%H%M%S")
         output_path = f"edited_{now}.mp4"
 
-        # FFmpeg command to make video copyright-free with blur bg, logo, and text
+        # FFmpeg command with blur bg, logo, two styled text boxes
         command = [
             "ffmpeg",
             "-i", file_path,
@@ -43,8 +43,8 @@ async def handle_video(client: Client, message: Message):
             f"[0:v]scale=480:trunc(ow/a/2)*2[fg];"
             f"[bg][fg]overlay=(W-w)/2:(H-h)/2[tmp];"
             f"[tmp][1:v]overlay=10:10,"
-            f"drawtext=text='{TEXT_WM}':fontcolor=white:fontsize=24:x=10:y=H-th-60,"
-            f"drawtext=text='{TEXT_SUB}':fontcolor=white:fontsize=18:x=10:y=H-th-30",
+            f"drawtext=text='{TEXT_WM}':fontcolor=white:fontsize=24:x=10:y=H-th-60:box=1:boxcolor=black@0.5:boxborderw=5,"
+            f"drawtext=text='{TEXT_SUB}':fontcolor=yellow:fontsize=18:x=10:y=H-th-30:box=1:boxcolor=black@0.5:boxborderw=5",
             "-preset", "ultrafast",
             "-c:a", "aac",
             "-y",

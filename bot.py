@@ -5,7 +5,7 @@ import subprocess
 from datetime import datetime
 from keep_alive import keep_alive
 
-# Keep the bot alive (Render/Replit)
+# Keep-alive server for Render
 keep_alive()
 
 # Telegram API credentials
@@ -23,7 +23,7 @@ LOGO_PATH = "logo.png"
 TEXT_WM = "@Viral Link Hub Official"
 TEXT_SUB = "Link on Comment Box / Profile"
 
-# Store file_ids mapped to user IDs
+# Store file_ids per user
 file_id_map = {}
 
 # Step 1: Receive video and ask for edit type
@@ -38,12 +38,15 @@ async def handle_video(client: Client, message: Message):
             [InlineKeyboardButton("🖋️ Only Text", callback_data="edit_text")],
             [InlineKeyboardButton("🚫 No Edit", callback_data="edit_none")]
         ]
-        await message.reply_text("📷 Choose what to add to your video:", reply_markup=InlineKeyboardMarkup(buttons))
+        await message.reply_text(
+            "📷 Choose what to add to your video:",
+            reply_markup=InlineKeyboardMarkup(buttons)
+        )
     except Exception as e:
         await message.reply_text(f"❌ Error: {e}")
 
-# Step 2: Handle button selection
-@app.on_callback_query()
+# Step 2: Handle edit selection
+@app.on_callback_query(filters=filters.private)
 async def callback_handler(client: Client, callback_query: CallbackQuery):
     action = callback_query.data
     user_id = callback_query.from_user.id
@@ -57,7 +60,6 @@ async def callback_handler(client: Client, callback_query: CallbackQuery):
     await message.edit_text("📥 Downloading your video...")
 
     try:
-        # Download video from Telegram
         downloaded_path = await client.download_media(file_id, file_name=os.path.join(DOWNLOAD_DIR, f"{user_id}.mp4"))
         now = datetime.now().strftime("%Y%m%d%H%M%S")
         output_path = f"edited_{now}.mp4"
@@ -76,20 +78,15 @@ async def callback_handler(client: Client, callback_query: CallbackQuery):
             )
 
         if action in ["edit_full", "edit_logo"]:
-            filters_list.append(f",overlay=10:10:enable='between(t,0,20)' [out]")
+            filters_list.append(",overlay=10:10")
 
-        ffmpeg_cmd = [
-            "ffmpeg", "-i", downloaded_path
-        ]
+        ffmpeg_cmd = ["ffmpeg", "-i", downloaded_path]
 
-        # Add logo if needed
         if action in ["edit_full", "edit_logo"]:
             ffmpeg_cmd += ["-i", LOGO_PATH]
 
         ffmpeg_cmd += [
             "-filter_complex", "".join(filters_list),
-            "-map", "[out]" if "edit_logo" in action else "0:v",
-            "-map", "0:a?",
             "-preset", "ultrafast",
             "-c:a", "aac",
             "-y", output_path
@@ -107,3 +104,6 @@ async def callback_handler(client: Client, callback_query: CallbackQuery):
 
     except Exception as e:
         await message.edit_text(f"❌ Error: Video editing failed.\n\n{e}")
+
+# Start the bot
+app.run()

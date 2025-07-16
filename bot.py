@@ -6,18 +6,15 @@ from datetime import datetime
 from keep_alive import keep_alive
 import re
 
-# Keep the bot alive (for Render.com or Replit)
+# Keep the bot alive
 keep_alive()
 
-# Telegram API credentials
 API_ID = 28179017
 API_HASH = "3eccbcc092d1a95e5c633913bfe0d9e9"
 BOT_TOKEN = "8194588818:AAHmvjJ42eR_VoGHXzxzqPfvMi8eJ9_OsAc"
 
-# Initialize bot
-app = Client("video_editor_bot", api_id=API_ID, api_hash=API_ID, bot_token=BOT_TOKEN)
+app = Client("video_editor_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
-# Constants
 DOWNLOAD_DIR = "downloads"
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
@@ -31,23 +28,20 @@ async def handle_video(client: Client, message: Message):
         await message.reply_text("📥 Downloading your video...")
         file_path = await message.download(file_name=os.path.join(DOWNLOAD_DIR, message.video.file_name or "input.mp4"))
 
-        # Step 1: Detect crop value
         cropdetect_cmd = [
             "ffmpeg", "-i", file_path,
-            "-t", "3",  # check first 3 seconds
+            "-t", "3",
             "-vf", "cropdetect",
             "-f", "null", "-"
         ]
         crop_result = subprocess.run(cropdetect_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         crop_output = crop_result.stdout.decode()
-
         match = re.search(r"crop=\d+:\d+:\d+:\d+", crop_output)
         crop_filter = match.group(0) if match else ""
 
         now = datetime.now().strftime("%Y%m%d%H%M%S")
         output_path = f"edited_{now}.mp4"
 
-        # Step 2: FFmpeg command with crop + blur + logo + text
         filter_chain = []
 
         if crop_filter:

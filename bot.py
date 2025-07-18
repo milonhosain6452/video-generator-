@@ -1,81 +1,74 @@
-import os
 from pyrogram import Client, filters
 from pyrogram.types import Message
+import os
 import subprocess
-import asyncio
-from flask import Flask
-import threading
+from datetime import datetime
+from keep_alive import keep_alive
 
-# ========== API CONFIG ==========
+keep_alive()
+
 API_ID = 28179017
 API_HASH = "3eccbcc092d1a95e5c633913bfe0d9e9"
 BOT_TOKEN = "8194588818:AAHmvjJ42eR_VoGHXzxzqPfvMi8eJ9_OsAc"
 
-# ========== LOGO / TEXT ==========
-WATERMARK_TEXT = "© YourBrand"
-LOGO_FILE = "logo.png"  # optional, keep in same folder
+app = Client("video_editor_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
-# ========== FLASK APP ==========
-app = Flask(__name__)
+DOWNLOAD_DIR = "downloads"
+os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
-@app.route('/')
-def home():
-    return "Bot is running!"
+LOGO_PATH = "logo.png"
+TEXT_WM = "@Viral Link Hub Official"
+TEXT_SUB = "Link on Comment Box / Profile"
 
-def run():
-    port = int(os.environ.get("PORT", 8080))
-    app.run(host="0.0.0.0", port=port)
+@app.on_message(filters.video & filters.private)
+async def handle_video(client: Client, message: Message):
+    try:
+        await message.reply_text("📥 Downloading your video...")
 
-def keep_alive():
-    thread = threading.Thread(target=run)
-    thread.start()
+        now = datetime.now().strftime("%Y%m%d%H%M%S")
+        input_filename = f"{message.video.file_unique_id}_{now}.mp4"
+        file_path = await message.download(file_name=os.path.join(DOWNLOAD_DIR, input_filename))
+        output_path = os.path.join(DOWNLOAD_DIR, f"edited_{now}.mp4")
 
-# ========== TELEGRAM BOT ==========
-bot = Client(
-    "watermark_bot",
-    api_id=API_ID,
-    api_hash=API_HASH,
-    bot_token=BOT_TOKEN
-)
+        command = [
+            "ffmpeg",
+            "-i", file_path,
+            "-i", LOGO_PATH,
+            "-filter_complex",
+            f"[0:v]crop=iw-40:ih-40:20:20,scale=720:trunc(ow/a/2)*2,boxblur=5:1[bg];"
+            f"[0:v]crop=iw-40:ih-40:20:20,scale=480:trunc(ow/a/2)*2[fg];"
+            f"[bg][fg]overlay=(W-w)/2:(H-h)/2[tmp];"
+            f"[tmp][1:v]overlay=W-w-20:H-h-20,"
+            f"drawtext=text='{TEXT_WM}':fontcolor=white:fontsize=28:x=(w-text_w)/2:y=H/1.25:box=1:boxcolor=black@0.6:boxborderw=8,"
+            f"drawtext=text='{TEXT_SUB}':fontcolor=yellow:fontsize=20:x=(w-text_w)/2:y=H/1.12:box=1:boxcolor=black@0.6:boxborderw=6[v]",
+            "-map", "[v]",
+            "-map", "0:a?",
+            "-c:v", "libx264",
+            "-preset", "ultrafast",
+            "-c:a", "aac",
+            "-y",
+            output_path
+        ]
 
-# ===== Image Watermark (Text only) =====
-async def process_image(input_path, output_path):
-    cmd = [
-        "ffmpeg", "-i", input_path,
-        "-vf", f"drawtext=text='{WATERMARK_TEXT}':fontcolor=white:fontsize=30:x=10:y=H-th-10",
-        "-y", output_path
-    ]
-    subprocess.run(cmd)
+        result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        if result.returncode != 0:
+            raise Exception(result.stderr.decode())
 
-# ===== Video Watermark (Text only) =====
-async def process_video(input_path, output_path):
-    cmd = [
-        "ffmpeg", "-i", input_path,
-        "-vf", f"drawtext=text='{WATERMARK_TEXT}':fontcolor=white:fontsize=24:x=10:y=H-th-10",
-        "-c:a", "copy",
-        "-y", output_path
-    ]
-    subprocess.run(cmd)
+        await message.reply_video(output_path, caption="✅ Video edited successfully!")
 
-# ====== Image Handler ======
-@bot.on_message(filters.photo)
-async def image_handler(client, message: Message):
-    msg = await message.reply("🔄 Processing image...")
-    downloaded = await message.download()
-    output = "processed_image.jpg"
-    await process_image(downloaded, output)
-    await message.reply_photo(photo=output, caption="✅ Done with watermark.")
-    await msg.delete()
-    os.remove(downloaded)
-    os.remove(output)
+    except Exception as e:
+        await message.reply_text(f"❌ Error:\n{e}")
 
-# ====== Video Handler ======
-@bot.on_message(filters.video)
-async def video_handler(client, message: Message):
-    msg = await message.reply("🔄 Processing video...")
-    downloaded = await message.download()
-    output = "processed_video.mp4"
-    await process_video(downloaded, output)
+    finally:
+        try:
+            if os.path.exists(file_path):
+                os.remove(file_path)
+            if os.path.exists(output_path):
+                os.remove(output_path)
+        except Exception as cleanup_err:
+            print(f"Cleanup Error: {cleanup_err}")
+
+app.run()    await process_video(downloaded, output)
     await message.reply_video(video=output, caption="✅ Watermark added.")
     await msg.delete()
     os.remove(downloaded)

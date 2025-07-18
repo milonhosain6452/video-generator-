@@ -1,7 +1,5 @@
-pyrogram
+pyrogram==2.0.106
 tgcrypto
-flask
-moviepy
-opencv-python
-numpy
+ffmpeg-python
 Pillow
+Flask

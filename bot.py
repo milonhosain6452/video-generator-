@@ -5,6 +5,7 @@ import subprocess
 from datetime import datetime
 from keep_alive import keep_alive
 
+# Start Flask server to keep alive
 keep_alive()
 
 API_ID = 28179017
@@ -24,12 +25,14 @@ TEXT_SUB = "Link on Comment Box / Profile"
 async def handle_video(client: Client, message: Message):
     try:
         await message.reply_text("📥 Downloading your video...")
-
+        
+        # Unique filename with timestamp
         now = datetime.now().strftime("%Y%m%d%H%M%S")
         input_filename = f"{message.video.file_unique_id}_{now}.mp4"
         file_path = await message.download(file_name=os.path.join(DOWNLOAD_DIR, input_filename))
         output_path = os.path.join(DOWNLOAD_DIR, f"edited_{now}.mp4")
 
+        # FFmpeg command
         command = [
             "ffmpeg",
             "-i", file_path,
@@ -38,9 +41,9 @@ async def handle_video(client: Client, message: Message):
             f"[0:v]crop=iw-40:ih-40:20:20,scale=720:trunc(ow/a/2)*2,boxblur=5:1[bg];"
             f"[0:v]crop=iw-40:ih-40:20:20,scale=480:trunc(ow/a/2)*2[fg];"
             f"[bg][fg]overlay=(W-w)/2:(H-h)/2[tmp];"
-            f"[tmp][1:v]overlay=W-w-20:H-h-20,"
-            f"drawtext=text='{TEXT_WM}':fontcolor=white:fontsize=28:x=(w-text_w)/2:y=H/1.25:box=1:boxcolor=black@0.6:boxborderw=8,"
-            f"drawtext=text='{TEXT_SUB}':fontcolor=yellow:fontsize=20:x=(w-text_w)/2:y=H/1.12:box=1:boxcolor=black@0.6:boxborderw=6[v]",
+            f"[tmp][1:v]overlay=10:10,"
+            f"drawtext=text='{TEXT_WM}':fontcolor=white:fontsize=24:x=10:y=H-th-60:box=1:boxcolor=black@0.5:boxborderw=5,"
+            f"drawtext=text='{TEXT_SUB}':fontcolor=yellow:fontsize=18:x=10:y=H-th-30:box=1:boxcolor=black@0.5:boxborderw=5[v]",
             "-map", "[v]",
             "-map", "0:a?",
             "-c:v", "libx264",
@@ -58,8 +61,9 @@ async def handle_video(client: Client, message: Message):
 
     except Exception as e:
         await message.reply_text(f"❌ Error:\n{e}")
-
+    
     finally:
+        # Delete temp files
         try:
             if os.path.exists(file_path):
                 os.remove(file_path)
@@ -68,19 +72,5 @@ async def handle_video(client: Client, message: Message):
         except Exception as cleanup_err:
             print(f"Cleanup Error: {cleanup_err}")
 
-app.run()    await process_video(downloaded, output)
-    await message.reply_video(video=output, caption="✅ Watermark added.")
-    await msg.delete()
-    os.remove(downloaded)
-    os.remove(output)
-
-# ====== Start Command ======
-@bot.on_message(filters.command("start"))
-async def start(_, message: Message):
-    await message.reply("👋 Send me a photo or video and I’ll watermark it!")
-
-# ===== MAIN =====
-keep_alive()
-
-if __name__ == "__main__":
-    bot.run()
+# Run the bot
+app.run()

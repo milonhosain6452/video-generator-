@@ -1,21 +1,36 @@
+import ffmpeg
+from PIL import Image, ImageDraw, ImageFont
 import os
-from moviepy.editor import VideoFileClip, TextClip, CompositeVideoClip
-from PIL import Image, ImageFilter
 
-def make_video_copyright_free(input_path, output_path, watermark_text="YourHub ©"):
-    try:
-        clip = VideoFileClip(input_path)
-        txt_clip = TextClip(watermark_text, fontsize=40, color='white')
-        txt_clip = txt_clip.set_position(("center", clip.h - 100)).set_duration(clip.duration)
-        final = CompositeVideoClip([clip, txt_clip])
-        final.write_videofile(output_path, codec="libx264", audio_codec="aac")
-    except Exception as e:
-        print("Video error:", e)
+# ভিডিও কপিরাইট ফ্রি করে, watermark + text বসিয়ে
+def make_video_copyright_free(input_path, output_path):
+    watermark_text = "YourBot | CopyFree"
+    watermark_logo = "logo.png"  # এই ফাইলটা প্রজেক্টে থাকতে হবে
 
-def make_image_safe(input_path, output_path):
-    try:
-        img = Image.open(input_path)
-        img = img.filter(ImageFilter.GaussianBlur(radius=3))
-        img.save(output_path)
-    except Exception as e:
-        print("Image error:", e)
+    # মিডল নিচে লেখা বসানো (text)
+    ffmpeg.input(input_path).output(
+        output_path,
+        vf=f"drawtext=text='{watermark_text}':x=(w-text_w)/2:y=h-th-80:fontsize=30:fontcolor=white:borderw=2,"
+           f"movie={watermark_logo}[wm];[in][wm]overlay=W-w-10:H-h-10",
+        codec="libx264", acodec="copy", strict="-2"
+    ).run(overwrite_output=True)
+
+# ইমেজ কপিরাইট ফ্রি করার জন্য blur + logo + text
+def make_image_safe(image_path):
+    base = Image.open(image_path).convert("RGBA").resize((512, 512))
+    txt = Image.new('RGBA', base.size, (255,255,255,0))
+
+    # Text watermark
+    font = ImageFont.truetype("arial.ttf", 24)
+    d = ImageDraw.Draw(txt)
+    d.text((10, 10), "YourBot | CopyFree", font=font, fill=(255,255,255,128))
+
+    # Overlay logo
+    if os.path.exists("logo.png"):
+        logo = Image.open("logo.png").resize((80, 80))
+        base.paste(logo, (base.size[0]-90, base.size[1]-90), logo)
+
+    watermarked = Image.alpha_composite(base, txt)
+    final_path = "processed_image.png"
+    watermarked.save(final_path)
+    return final_path

@@ -1,35 +1,41 @@
 import os
-import cv2
 import uuid
 import subprocess
 from PIL import Image, ImageDraw, ImageFont
 
-def make_image_safe(image_path):
-    img = Image.open(image_path).convert("RGBA")
+def make_image_safe(input_path):
+    output_path = f"safe_{uuid.uuid4().hex}.jpg"
+    img = Image.open(input_path).convert("RGB")
+    draw = ImageDraw.Draw(img)
+
+    font_path = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+    if not os.path.exists(font_path):
+        font = ImageFont.load_default()
+    else:
+        font = ImageFont.truetype(font_path, 40)
+
+    text = "@YourWatermark"
     width, height = img.size
-    txt_layer = Image.new("RGBA", img.size, (255,255,255,0))
+    text_width, text_height = draw.textsize(text, font=font)
 
-    draw = ImageDraw.Draw(txt_layer)
-    font = ImageFont.truetype("arial.ttf", size=40)
-    text = "Shared via VideoBot"
-    textwidth, textheight = draw.textsize(text, font)
-    x = (width - textwidth) // 2
-    y = int(height * 0.88)
-    draw.text((x, y), text, font=font, fill=(255,255,255,128))
+    position = ((width - text_width) // 2, height - text_height - 30)
+    draw.text(position, text, (255, 255, 255), font=font)
 
-    combined = Image.alpha_composite(img, txt_layer)
-    output_path = f"safe_{uuid.uuid4().hex}.png"
-    combined.convert("RGB").save(output_path, "PNG")
+    img.save(output_path, quality=95)
     return output_path
 
-def make_video_copyright_free(video_path):
+def make_video_copyright_free(input_path):
     output_path = f"safe_{uuid.uuid4().hex}.mp4"
-    watermark = "Shared via VideoBot"
-    
-    cmd = [
-        "ffmpeg", "-i", video_path,
-        "-vf", f"drawtext=text='{watermark}':x=(w-text_w)/2:y=h*0.85:fontcolor=white:fontsize=36:box=1:boxcolor=black@0.5",
-        "-c:a", "copy", output_path
+    watermark_text = "@YourWatermark"
+    font_path = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+
+    command = [
+        "ffmpeg",
+        "-i", input_path,
+        "-vf", f"drawtext=text='{watermark_text}':fontfile={font_path}:fontcolor=white:fontsize=36:x=(w-text_w)/2:y=(h/2)-50",
+        "-codec:a", "copy",
+        output_path
     ]
-    subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+    subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     return output_path

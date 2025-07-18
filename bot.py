@@ -1,74 +1,50 @@
-from pyrogram import Client, filters
-from pyrogram.types import Message
 import os
-import subprocess
-from datetime import datetime
-from keep_alive import keep_alive
-
-keep_alive()
+from pyrogram import Client, filters
+from utils import make_video_copyright_free, make_image_safe
+from flask_app import app
+import threading
 
 API_ID = 28179017
 API_HASH = "3eccbcc092d1a95e5c633913bfe0d9e9"
 BOT_TOKEN = "8194588818:AAHmvjJ42eR_VoGHXzxzqPfvMi8eJ9_OsAc"
 
-app = Client("video_editor_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
+bot = Client("cfbot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
-DOWNLOAD_DIR = "downloads"
-os.makedirs(DOWNLOAD_DIR, exist_ok=True)
-
-LOGO_PATH = "logo.png"
-TEXT_WM = "@Viral Link Hub Official"
-TEXT_SUB = "Link on Comment Box / Profile"
-
-@app.on_message(filters.video & filters.private)
-async def handle_video(client: Client, message: Message):
+@bot.on_message(filters.video | filters.document.video)
+async def handle_video(_, msg):
+    sent = await msg.reply("⏳ ভিডিও প্রসেস হচ্ছে...")
     try:
-        await message.reply_text("📥 Downloading your video...")
-
-        # ডাউনলোড এবং ইউনিক ফাইলনেম তৈরি
-        now = datetime.now().strftime("%Y%m%d%H%M%S")
-        input_filename = f"{message.video.file_unique_id}_{now}.mp4"
-        file_path = await message.download(file_name=os.path.join(DOWNLOAD_DIR, input_filename))
-        output_path = os.path.join(DOWNLOAD_DIR, f"edited_{now}.mp4")
-
-        # FFmpeg Command
-        command = [
-            "ffmpeg",
-            "-i", file_path,
-            "-i", LOGO_PATH,
-            "-filter_complex",
-            f"[0:v]crop=iw-40:ih-40:20:20,scale=720:trunc(ow/a/2)*2,boxblur=5:1[bg];"
-            f"[0:v]crop=iw-40:ih-40:20:20,scale=480:trunc(ow/a/2)*2[fg];"
-            f"[bg][fg]overlay=(W-w)/2:(H-h)/2[tmp];"
-            f"[tmp][1:v]overlay=10:10,"
-            f"drawtext=text='{TEXT_WM}':fontcolor=white:fontsize=24:x=10:y=H-th-60:box=1:boxcolor=black@0.5:boxborderw=5,"
-            f"drawtext=text='{TEXT_SUB}':fontcolor=yellow:fontsize=18:x=10:y=H-th-30:box=1:boxcolor=black@0.5:boxborderw=5[v]",
-            "-map", "[v]",
-            "-map", "0:a?",
-            "-c:v", "libx264",
-            "-preset", "ultrafast",
-            "-c:a", "aac",
-            "-y",
-            output_path
-        ]
-
-        result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        if result.returncode != 0:
-            raise Exception(result.stderr.decode())
-
-        await message.reply_video(output_path, caption="✅ Video edited successfully!")
-
+        path = await msg.download()
+        out_path = "edited_" + path
+        make_video_copyright_free(path, out_path)
+        await msg.reply_video(out_path, caption="✅ কপিরাইট ফ্রি করা হলো!")
+        await sent.delete()
+        os.remove(path)
+        os.remove(out_path)
     except Exception as e:
-        await message.reply_text(f"❌ Error:\n{e}")
+        await sent.edit(f"❌ ভিডিও এডিটে সমস্যা: {e}")
 
-    finally:
-        # ফাইল ডিলিট করো (input ও output)
-        try:
-            if os.path.exists(file_path):
-                os.remove(file_path)
-            if os.path.exists(output_path):
-                os.remove(output_path)
-        except Exception as cleanup_err:
-            print(f"Cleanup Error: {cleanup_err}")
+@bot.on_message(filters.photo)
+async def handle_photo(_, msg):
+    sent = await msg.reply("🖼️ ইমেজ প্রসেস হচ্ছে...")
+    try:
+        path = await msg.download()
+        out_path = "edited_" + path
+        make_image_safe(path, out_path)
+        await msg.reply_photo(out_path, caption="✅ ইমেজ ক্লিন করা হলো!")
+        await sent.delete()
+        os.remove(path)
+        os.remove(out_path)
+    except Exception as e:
+        await sent.edit(f"❌ ইমেজ প্রসেসে সমস্যা: {e}")
 
-app.run()
+@bot.on_message(filters.command("start"))
+async def start(_, msg):
+    await msg.reply("👋 Just send a video or photo, I’ll edit it to be copyright-free!")
+
+def run():
+    app.run(host="0.0.0.0", port=8080)
+
+if __name__ == "__main__":
+    threading.Thread(target=run).start()
+    bot.run()
